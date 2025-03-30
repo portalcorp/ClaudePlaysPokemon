@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Plays Pokemon</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --pokemon-yellow: #FFCB05;
+            --pokemon-blue: #003A70;
+            --chat-bg: #1a1a1a;
+            --chat-text: #9e9e9e;
+            --border-color: #2a2a2a;
+            --header-gradient: linear-gradient(45deg, #1a1a1a, #2a2a2a);
+            --status-border: #3a3a3a;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Press Start 2P', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            background-color: #000000;
+            background-image: linear-gradient(45deg, #0a0a0a 25%, transparent 25%),
+                            linear-gradient(-45deg, #0a0a0a 25%, transparent 25%),
+                            linear-gradient(45deg, transparent 75%, #0a0a0a 75%),
+                            linear-gradient(-45deg, transparent 75%, #0a0a0a 75%);
+            background-size: 20px 20px;
+            color: var(--chat-text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: var(--header-gradient);
+            padding: 1rem;
+            border-bottom: 4px solid var(--pokemon-yellow);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+
+        .header h1 {
+            color: var(--pokemon-yellow);
+            font-size: 1.2rem;
+            text-shadow: 2px 2px #000;
+            letter-spacing: 1px;
+        }
+
+        .container {
+            display: flex;
+            flex: 1;
+            padding: 1rem;
+            gap: 1rem;
+            height: calc(100vh - 4rem);
+        }
+
+        .game-window {
+            flex: 1;
+            background-color: var(--chat-bg);
+            border: 4px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        #game-screen {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            image-rendering: pixelated;
+        }
+
+        .chat-window {
+            width: 340px;
+            background-color: var(--chat-bg);
+            border: 4px solid var(--border-color);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        .chat-header {
+            padding: 1rem;
+            border-bottom: 4px solid var(--border-color);
+            background: var(--header-gradient);
+        }
+
+        .chat-header h2 {
+            font-size: 0.8rem;
+            color: var(--pokemon-yellow);
+            text-shadow: 1px 1px #000;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .message {
+            margin-bottom: 1.5rem;
+            word-wrap: break-word;
+            font-size: 0.7rem;
+            padding: 0.8rem;
+            background-color: rgba(255, 255, 255, 0.02);
+            border-radius: 4px;
+            border: 2px solid var(--border-color);
+        }
+
+        .message .timestamp {
+            color: var(--pokemon-yellow);
+            font-size: 0.6rem;
+            margin-right: 0.5rem;
+            opacity: 0.7;
+        }
+
+        .message .content {
+            color: var(--chat-text);
+            line-height: 1.8;
+        }
+
+        .status {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background-color: rgba(0, 0, 0, 0.9);
+            color: var(--chat-text);
+            padding: 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            border: 2px solid var(--status-border);
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .run-button {
+            background-color: var(--pokemon-yellow);
+            color: var(--pokemon-blue);
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .run-button.red {
+            background-color: #ff4444;
+            color: white;
+        }
+
+        .run-button.purple {
+            background-color: #9b59b6;
+            color: white;
+        }
+
+        .run-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--chat-bg);
+            border: 2px solid var(--border-color);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3a3a3a;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>Claude Plays Pokemon</h1>
+    </header>
+    
+    <main class="container">
+        <div class="game-window">
+            <canvas id="game-screen"></canvas>
+            <div class="status">
+                <span class="status-text">Stopped</span>
+                <button class="run-button" id="run-button" onclick="toggleAgent()">Run</button>
+                <button class="run-button purple" id="pause-button" onclick="pauseAgent()" style="display: none;">Pause</button>
+                <button class="run-button red" id="stop-button" onclick="stopAgent()" style="display: none;">Stop</button>
+                <input type="file" id="save-state-input" style="display: none" accept=".state">
+                <button class="run-button" id="load-state-button" onclick="document.getElementById('save-state-input').click()">Load Save</button>
+            </div>
+        </div>
+        
+        <div class="chat-window">
+            <div class="chat-header">
+                <h2>Claude's Thoughts</h2>
+            </div>
+            <div class="chat-messages" id="chat-messages">
+                <!-- Messages will be inserted here -->
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let ws = null;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+        const reconnectDelay = 1000;
+        let isAgentRunning = false;
+        let isAgentPaused = false;
+
+        // Add save state upload handler
+        document.getElementById('save-state-input').addEventListener('change', async function(e) {
+            if (!e.target.files.length) return;
+            
+            const file = e.target.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            const statusText = document.querySelector('.status-text');
+            try {
+                const response = await fetch('/upload-save-state', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (data.status === 'success') {
+                    statusText.textContent = 'Save state loaded';
+                } else {
+                    statusText.textContent = 'Error: ' + data.message;
+                }
+            } catch (error) {
+                console.error('Error uploading save state:', error);
+                statusText.textContent = 'Error uploading save state';
+            }
+            
+            // Clear the input
+            e.target.value = '';
+        });
+
+        async function toggleAgent() {
+            const runButton = document.getElementById('run-button');
+            const pauseButton = document.getElementById('pause-button');
+            const stopButton = document.getElementById('stop-button');
+            const loadStateButton = document.getElementById('load-state-button');
+            const statusText = document.querySelector('.status-text');
+            
+            if (!isAgentRunning) {
+                runButton.disabled = true;
+                try {
+                    const response = await fetch('/start', { method: 'POST' });
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        isAgentRunning = true;
+                        isAgentPaused = false;
+                        statusText.textContent = 'Running';
+                        runButton.style.display = 'none';
+                        pauseButton.style.display = 'inline';
+                        stopButton.style.display = 'inline';
+                        loadStateButton.style.display = 'none';
+                    } else {
+                        statusText.textContent = 'Error: ' + data.message;
+                        runButton.disabled = false;
+                    }
+                } catch (error) {
+                    console.error('Error starting agent:', error);
+                    statusText.textContent = 'Error starting agent';
+                    runButton.disabled = false;
+                }
+            }
+        }
+
+        async function pauseAgent() {
+            const pauseButton = document.getElementById('pause-button');
+            const statusText = document.querySelector('.status-text');
+            
+            try {
+                const response = await fetch('/pause', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    isAgentPaused = !isAgentPaused;
+                    statusText.textContent = isAgentPaused ? 'Paused' : 'Running';
+                    pauseButton.textContent = isAgentPaused ? 'Resume' : 'Pause';
+                } else {
+                    statusText.textContent = 'Error: ' + data.message;
+                }
+            } catch (error) {
+                console.error('Error toggling pause:', error);
+                statusText.textContent = 'Error toggling pause';
+            }
+        }
+
+        async function stopAgent() {
+            const runButton = document.getElementById('run-button');
+            const pauseButton = document.getElementById('pause-button');
+            const stopButton = document.getElementById('stop-button');
+            const loadStateButton = document.getElementById('load-state-button');
+            const statusText = document.querySelector('.status-text');
+            
+            try {
+                const response = await fetch('/stop', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    isAgentRunning = false;
+                    isAgentPaused = false;
+                    statusText.textContent = 'Stopped';
+                    runButton.disabled = false;
+                    runButton.style.display = 'inline';
+                    pauseButton.style.display = 'none';
+                    stopButton.style.display = 'none';
+                    loadStateButton.style.display = 'inline';
+                    pauseButton.textContent = 'Pause';
+                } else {
+                    statusText.textContent = 'Error: ' + data.message;
+                }
+            } catch (error) {
+                console.error('Error stopping agent:', error);
+                statusText.textContent = 'Error stopping agent';
+            }
+        }
+
+        async function checkAgentStatus() {
+            try {
+                const response = await fetch('/status');
+                const data = await response.json();
+                
+                const statusText = document.querySelector('.status-text');
+                const runButton = document.getElementById('run-button');
+                const pauseButton = document.getElementById('pause-button');
+                const stopButton = document.getElementById('stop-button');
+                const loadStateButton = document.getElementById('load-state-button');
+                
+                isAgentRunning = data.status === 'running';
+                isAgentPaused = data.status === 'paused';
+                
+                if (isAgentRunning || isAgentPaused) {
+                    statusText.textContent = isAgentPaused ? 'Paused' : 'Running';
+                    runButton.style.display = 'none';
+                    pauseButton.style.display = 'inline';
+                    stopButton.style.display = 'inline';
+                    loadStateButton.style.display = 'none';
+                    pauseButton.textContent = isAgentPaused ? 'Resume' : 'Pause';
+                } else {
+                    statusText.textContent = 'Stopped';
+                    runButton.disabled = false;
+                    runButton.style.display = 'inline';
+                    pauseButton.style.display = 'none';
+                    stopButton.style.display = 'none';
+                    loadStateButton.style.display = 'inline';
+                    pauseButton.textContent = 'Pause';
+                }
+            } catch (error) {
+                console.error('Error checking agent status:', error);
+            }
+        }
+
+        function connectWebSocket() {
+            if (ws !== null) {
+                ws.close();
+            }
+
+            ws = new WebSocket(`ws://${window.location.host}/ws`);
+            
+            ws.onopen = function() {
+                console.log('WebSocket connected');
+                reconnectAttempts = 0;
+                checkAgentStatus(); // Check status when connection is established
+            };
+
+            ws.onclose = function() {
+                console.log('WebSocket disconnected');
+                document.querySelector('.status').textContent = 'Reconnecting...';
+                document.querySelector('.status').style.backgroundColor = 'rgba(255, 165, 0, 0.8)';
+                
+                // Try to reconnect with exponential backoff
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    const delay = reconnectDelay * Math.pow(2, reconnectAttempts);
+                    console.log(`Attempting to reconnect in ${delay}ms...`);
+                    setTimeout(connectWebSocket, delay);
+                    reconnectAttempts++;
+                } else {
+                    document.querySelector('.status').textContent = 'Offline';
+                    document.querySelector('.status').style.backgroundColor = 'rgba(255, 0, 0, 0.8)';
+                }
+            };
+
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+            };
+
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'update') {
+                        // Update game frame
+                        if (data.frame) {
+                            const frameData = new Uint8Array(data.frame.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                            const blob = new Blob([frameData], { type: 'image/png' });
+                            const url = URL.createObjectURL(blob);
+                            const img = new Image();
+                            img.onload = () => {
+                                ctx.drawImage(img, 0, 0, gameScreen.width, gameScreen.height);
+                                URL.revokeObjectURL(url);
+                            };
+                            img.src = url;
+                        }
+
+                        // Update chat
+                        if (data.message) {
+                            const messageDiv = document.createElement('div');
+                            messageDiv.className = 'message';
+                            messageDiv.innerHTML = `
+                                <span class="timestamp">${new Date().toLocaleTimeString()}</span>
+                                <span class="content">${data.message}</span>
+                            `;
+                            chatMessages.appendChild(messageDiv);
+                            chatMessages.scrollTop = chatMessages.scrollHeight;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error processing message:', error);
+                }
+            };
+        }
+
+        const chatMessages = document.getElementById('chat-messages');
+        const gameScreen = document.getElementById('game-screen');
+        const ctx = gameScreen.getContext('2d');
+
+        // Set up the canvas size
+        function resizeCanvas() {
+            const container = gameScreen.parentElement;
+            gameScreen.width = container.clientWidth;
+            gameScreen.height = container.clientHeight;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Initial WebSocket connection
+        connectWebSocket();
+
+        // Send periodic ping to keep connection alive
+        setInterval(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'ping' }));
+            }
+        }, 30000);
+
+        // Check agent status periodically
+        setInterval(checkAgentStatus, 5000);
+    </script>
+</body>
+</html> 

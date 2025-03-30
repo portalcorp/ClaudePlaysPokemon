@@ -5,6 +5,7 @@ A minimal implementation of Claude playing Pokemon Red using the PyBoy emulator.
 - Simple agent that uses Claude to play Pokemon Red
 - Memory reading functionality to extract game state information
 - Basic emulator control through Claude's function calling
+- Comprehensive logging system for game frames and Claude's messages
 
 ## Setup
 
@@ -39,6 +40,16 @@ Example:
 python main.py --rom pokemon.gb --steps 20 --display --sound
 ```
 
+## Logging System
+
+The game automatically creates logs for each run in the `/logs` directory. Each run gets its own timestamped directory (e.g., `logs/run_20240321_123456/`) containing:
+
+- `frames/`: Directory containing numbered PNG files of each game frame
+- `claude_messages.log`: Log file of all Claude's messages with timestamps
+- `game.log`: General game logs including errors and important events
+
+This logging system helps track Claude's decision-making process and the game's progression over time.
+
 ## Implementation Details
 
 ### Components
@@ -54,3 +65,4 @@ python main.py --rom pokemon.gb --steps 20 --display --sound
 3. It sends the screenshot and game state to Claude
 4. Claude responds with explanations and emulator commands
 5. The agent executes the commands and repeats the process
+6. All frames and messages are logged for later analysis
