@@ -562,17 +562,17 @@ class Emulator:
         valid_moves_str = ", ".join(valid_moves) if valid_moves else "None"
 
         memory_str += f"Player: {name}\n"
-        memory_str += f"Rival: {rival_name}\n"
-        memory_str += f"Money: ${reader.read_money()}\n"
+        # memory_str += f"Rival: {rival_name}\n"
+        # memory_str += f"Money: ${reader.read_money()}\n"
         memory_str += f"Location: {reader.read_location()}\n"
         memory_str += f"Coordinates: {reader.read_coordinates()}\n"
         memory_str += f"Valid Moves: {valid_moves_str}\n"
-        memory_str += f"Badges: {', '.join(reader.read_badges())}\n"
+        # memory_str += f"Badges: {', '.join(reader.read_badges())}\n"
 
         # Inventory
-        memory_str += "Inventory:\n"
-        for item, qty in reader.read_items():
-            memory_str += f"  {item} x{qty}\n"
+        # memory_str += "Inventory:\n"
+        # for item, qty in reader.read_items():
+        #     memory_str += f"  {item} x{qty}\n"
 
         # Dialog
         dialog = reader.read_dialog()
@@ -582,15 +582,15 @@ class Emulator:
             memory_str += "Dialog: None\n"
 
         # Party Pokemon
-        memory_str += "\nPokemon Party:\n"
-        for pokemon in reader.read_party_pokemon():
-            memory_str += f"\n{pokemon.nickname} ({pokemon.species_name}):\n"
-            memory_str += f"Level {pokemon.level} - HP: {pokemon.current_hp}/{pokemon.max_hp}\n"
-            memory_str += f"Types: {pokemon.type1.name}{', ' + pokemon.type2.name if pokemon.type2 else ''}\n"
-            for move, pp in zip(pokemon.moves, pokemon.move_pp, strict=True):
-                memory_str += f"- {move} (PP: {pp})\n"
-            if pokemon.status != StatusCondition.NONE:
-                memory_str += f"Status: {pokemon.status.get_status_name()}\n"
+        # memory_str += "\nPokemon Party:\n"
+        # for pokemon in reader.read_party_pokemon():
+        #     memory_str += f"\n{pokemon.nickname} ({pokemon.species_name}):\n"
+        #     memory_str += f"Level {pokemon.level} - HP: {pokemon.current_hp}/{pokemon.max_hp}\n"
+        #     memory_str += f"Types: {pokemon.type1.name}{', ' + pokemon.type2.name if pokemon.type2 else ''}\n"
+        #     for move, pp in zip(pokemon.moves, pokemon.move_pp, strict=True):
+        #         memory_str += f"- {move} (PP: {pp})\n"
+        #     if pokemon.status != StatusCondition.NONE:
+        #         memory_str += f"Status: {pokemon.status.get_status_name()}\n"
 
         return memory_str
 
