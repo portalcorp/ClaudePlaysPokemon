@@ -89,6 +89,30 @@ class Emulator:
                 logger.error(f"Failed to load save state: {e2}")
                 raise
 
+    def save_state(self, state_filename):
+        """
+        Save the current emulator state to a file.
+        
+        Args:
+            state_filename: Path where to save the PyBoy .state file
+        """
+        try:
+            # Create parent directory if it doesn't exist
+            os.makedirs(os.path.dirname(state_filename), exist_ok=True)
+            
+            # Get state data as bytes
+            state_io = io.BytesIO()
+            self.pyboy.save_state(state_io)
+            state_data = state_io.getvalue()
+            
+            # Save to file
+            with open(state_filename, 'wb') as f:
+                f.write(state_data)
+            logger.info(f"Saved game state to {state_filename}")
+        except Exception as e:
+            logger.error(f"Failed to save game state: {e}")
+            raise
+
     def press_buttons(self, buttons, wait=True):
         """Press a sequence of buttons on the Game Boy.
         

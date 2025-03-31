@@ -188,6 +188,49 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #3a3a3a;
         }
+
+        .chat-input {
+            padding: 1rem;
+            border-top: 4px solid var(--border-color);
+            background: var(--header-gradient);
+        }
+
+        .chat-input form {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 0.5rem;
+            font-family: inherit;
+            font-size: 0.7rem;
+            background: var(--chat-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--chat-text);
+        }
+
+        .chat-input button {
+            padding: 0.5rem 1rem;
+            font-family: inherit;
+            font-size: 0.7rem;
+            background: var(--pokemon-yellow);
+            border: none;
+            border-radius: 4px;
+            color: var(--pokemon-blue);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .chat-input button:hover {
+            opacity: 0.9;
+        }
+
+        .chat-input button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -214,6 +257,12 @@
             </div>
             <div class="chat-messages" id="chat-messages">
                 <!-- Messages will be inserted here -->
+            </div>
+            <div class="chat-input">
+                <form id="chat-form" onsubmit="sendMessage(event)">
+                    <input type="text" id="message-input" placeholder="Send a message to Claude..." />
+                    <button type="submit">Send</button>
+                </form>
             </div>
         </div>
     </main>
@@ -471,6 +520,43 @@
 
         // Check agent status periodically
         setInterval(checkAgentStatus, 5000);
+
+        async function sendMessage(event) {
+            event.preventDefault();
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            try {
+                const response = await fetch('/send-message', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message })
+                });
+                
+                if (response.ok) {
+                    // Add user message to chat
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'message user-message';
+                    messageDiv.innerHTML = `
+                        <span class="timestamp">${new Date().toLocaleTimeString()}</span>
+                        <span class="content">${message}</span>
+                    `;
+                    chatMessages.appendChild(messageDiv);
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                    
+                    // Clear input
+                    input.value = '';
+                } else {
+                    console.error('Failed to send message');
+                }
+            } catch (error) {
+                console.error('Error sending message:', error);
+            }
+        }
     </script>
 </body>
 </html> 

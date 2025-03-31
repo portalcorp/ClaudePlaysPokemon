@@ -7,8 +7,10 @@ from pathlib import Path
 import asyncio
 import logging
 import json
+from pydantic import BaseModel
 from web.agent_runner import run_agent
 from agent.simple_agent import SimpleAgent
+import os
 
 app = FastAPI()
 
@@ -160,6 +162,15 @@ async def stop_agent():
         return {"status": "error", "message": "No agent is running"}
     
     try:
+        # Save game state before stopping
+        if hasattr(app.state, 'agent') and hasattr(app.state, 'run_log_dir'):
+            state_file = os.path.join(app.state.run_log_dir, "final_state.state")
+            try:
+                app.state.agent.emulator.save_state(state_file)
+                logger.info(f"Saved final game state to {state_file}")
+            except Exception as e:
+                logger.error(f"Failed to save game state: {e}")
+        
         # Cancel the running task
         app.state.agent_task.cancel()
         try:
@@ -231,6 +242,36 @@ async def upload_save_state(file: UploadFile = File(...)):
             
     except Exception as e:
         logger.error(f"Error handling save state upload: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"status": "error", "message": str(e)}
+        )
+
+class Message(BaseModel):
+    message: str
+
+@app.post("/send-message")
+async def send_message(message: Message):
+    if not hasattr(app.state, 'agent'):
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"status": "error", "message": "Agent not initialized"}
+        )
+    
+    try:
+        # Add the message to the agent's message history
+        app.state.agent.message_history.append({
+            "role": "user",
+            "content": [{"type": "text", "text": message.message}]
+        })
+        
+        # Log the user message
+        if hasattr(app.state, 'claude_logger'):
+            app.state.claude_logger.info(f"User message: {message.message}")
+        
+        return JSONResponse({"status": "success", "message": "Message sent successfully"})
+    except Exception as e:
+        logger.error(f"Error sending message: {e}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"status": "error", "message": str(e)}

@@ -42,7 +42,9 @@ There is a color overlay on the tiles that shows the following:
 
 Try to enter Mt. Moon immediately, don't go into the Pokemon center. Exit the town immediately. Try to locate the cave in your very first screenshot.
 
-You are starting at a pre-loaded save state. You are starting right outside of the Pewter City Pokemon center before you head to Mt. Moon. Your goal is to enter and then get out of Mt. Moon on Route 4.
+You are starting at a pre-loaded save state. You are starting right next to the Pokemon Center west of the Mt Moon entrance. Your goal is to enter and then exit Mt. Moon which will lead you to Route 4.
+
+The entrance of the cave will be a singular green tile surrounded by red tiles except for the bottom.
 
 Before each action, explain your reasoning briefly, then use the emulator tool to execute your chosen commands. Try to find the necessary ladders. The ladders sprites are visible faintly in the green blocks, they do not have their own distinct color.
 
