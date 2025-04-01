@@ -3,6 +3,7 @@ import logging
 import pickle
 from collections import deque
 import heapq
+import os
 
 from agent.memory_reader import PokemonRedReader, StatusCondition
 from PIL import Image
@@ -13,18 +14,22 @@ logger = logging.getLogger(__name__)
 
 class Emulator:
     def __init__(self, rom_path, headless=True, sound=False):
-        if headless:
-            self.pyboy = PyBoy(
-                rom_path,
-                window="null",
-                cgb=True,
-            )
-        else:
-            self.pyboy = PyBoy(
-                rom_path,
-                cgb=True,
-                sound=sound,
-            )
+        self.rom_path = rom_path  # Store the ROM path
+        self.headless = headless  # Store headless state
+        self.sound = sound  # Store sound state
+        try:
+            # First try with cgb=True
+            if headless:
+                self.pyboy = PyBoy(rom_path, window="null", cgb=True)
+            else:
+                self.pyboy = PyBoy(rom_path, sound=sound, cgb=True)
+        except Exception as e:
+            logger.info("Failed to initialize in CGB mode, falling back to GB mode")
+            # If that fails, try with cgb=False
+            if headless:
+                self.pyboy = PyBoy(rom_path, window="null", cgb=False)
+            else:
+                self.pyboy = PyBoy(rom_path, sound=sound, cgb=False)
 
     def tick(self, frames):
         """Advance the emulator by the specified number of frames."""
@@ -43,19 +48,46 @@ class Emulator:
         """Get the current screenshot."""
         return Image.fromarray(self.pyboy.screen.ndarray)
 
-    def load_state(self, state_filename):
+    def get_screenshot_with_overlay(self, alpha=128):
         """
-        Load a state from a pickled file into the emulator.
-        The pickled file should contain a dictionary with a 'pyboy_state' key.
+        Get the current screenshot with a tile overlay showing walkable/unwalkable areas.
         
         Args:
-            state_filename: Path to the state file
+            alpha (int): Transparency value for the overlay (0-255)
+            
+        Returns:
+            PIL.Image: Screenshot with tile overlay
         """
-        with open(state_filename, 'rb') as f:
-            state_data = pickle.load(f)
-            # Extract the PyBoy state from the full state data
-            pyboy_state_io = io.BytesIO(state_data["pyboy_state"])
-            self.pyboy.load_state(pyboy_state_io)
+        from tile_visualizer import overlay_on_screenshot
+        screenshot = self.get_screenshot()
+        collision_map = self.get_collision_map()
+        return overlay_on_screenshot(screenshot, collision_map, alpha)
+
+    def load_state(self, state_filename):
+        """
+        Load a PyBoy save state file into the emulator.
+        
+        Args:
+            state_filename: Path to the PyBoy .state file
+        """
+        try:
+            with open(state_filename, 'rb') as f:
+                state_data = f.read()
+                state_io = io.BytesIO(state_data)
+                self.pyboy.load_state(state_io)
+        except Exception as e:
+            # If direct loading fails, try with pickle
+            try:
+                with open(state_filename, 'rb') as f:
+                    state_data = pickle.load(f)
+                    if "pyboy_state" in state_data:
+                        pyboy_state_io = io.BytesIO(state_data["pyboy_state"])
+                        self.pyboy.load_state(pyboy_state_io)
+                    else:
+                        raise ValueError("Invalid save state format")
+            except Exception as e2:
+                logger.error(f"Failed to load save state: {e2}")
+                raise
 
     def press_buttons(self, buttons, wait=True):
         """Press a sequence of buttons on the Game Boy.
@@ -151,12 +183,13 @@ class Emulator:
     def get_collision_map(self):
         """
         Creates a simple ASCII map showing player position, direction, terrain and sprites.
+        Takes into account tile pair collisions for more accurate walkability.
         Returns:
             str: A string representation of the ASCII map with legend
         """
         # Get the terrain and movement data
-        full_map = self.pyboy.game_wrapper.game_area()
-        collision_map = self.pyboy.game_wrapper.game_area_collision()
+        full_map = self.pyboy.game_area()
+        collision_map = self.pyboy.game_area_collision()
         downsampled_terrain = self._downsample_array(collision_map)
 
         # Get sprite locations
@@ -166,6 +199,11 @@ class Emulator:
         direction = self._get_direction(full_map)
         if direction == "no direction found":
             return None
+
+        # Get tileset for tile pair collision checks
+        reader = PokemonRedReader(self.pyboy.memory)
+        tileset = reader.read_tileset()
+        full_tilemap = self.pyboy.game_wrapper._get_screen_background_tilemap()
 
         # Direction symbols
         direction_chars = {"up": "↑", "down": "↓", "left": "←", "right": "→"}
@@ -186,11 +224,27 @@ class Emulator:
                     # Sprite position
                     row += "S"
                 else:
-                    # Terrain representation
-                    if downsampled_terrain[i][j] == 0:
-                        row += "█"  # Wall
+                    # Check if this tile is actually walkable by checking tile pair collisions
+                    # with adjacent tiles from player position (4,4)
+                    is_walkable = True
+                    
+                    # Only check if base terrain is walkable
+                    if downsampled_terrain[i][j] != 0:
+                        # Get the bottom-left tiles for collision check
+                        current_tile = full_tilemap[i * 2 + 1][j * 2]
+                        player_tile = full_tilemap[9][8]  # Player position (4,4) in 9x10 grid
+                        
+                        # If we can't move between these tiles, mark as wall
+                        if not self._can_move_between_tiles(player_tile, current_tile, tileset):
+                            is_walkable = False
                     else:
-                        row += "·"  # Path
+                        is_walkable = False
+
+                    # Terrain representation
+                    if not is_walkable:
+                        row += "█"  # Wall/unwalkable
+                    else:
+                        row += "·"  # Path/walkable
             row += "|"
             lines.append(row)
 
@@ -202,7 +256,7 @@ class Emulator:
             [
                 "",
                 "Legend:",
-                "█ - Wall/Obstacle",
+                "█ - Wall/Obstacle/Unwalkable",
                 "· - Path/Walkable",
                 "S - Sprite",
                 f"{direction_chars['up']}/{direction_chars['down']}/{direction_chars['left']}/{direction_chars['right']} - Player (facing direction)",
@@ -219,7 +273,7 @@ class Emulator:
             list[str]: List of valid movement directions
         """
         # Get collision map
-        collision_map = self.pyboy.game_wrapper.game_area_collision()
+        collision_map = self.pyboy.game_area_collision()
         terrain = self._downsample_array(collision_map)
 
         # Player is always at position (4,4) in the 9x10 downsampled map
@@ -508,17 +562,17 @@ class Emulator:
         valid_moves_str = ", ".join(valid_moves) if valid_moves else "None"
 
         memory_str += f"Player: {name}\n"
-        memory_str += f"Rival: {rival_name}\n"
-        memory_str += f"Money: ${reader.read_money()}\n"
+        # memory_str += f"Rival: {rival_name}\n"
+        # memory_str += f"Money: ${reader.read_money()}\n"
         memory_str += f"Location: {reader.read_location()}\n"
         memory_str += f"Coordinates: {reader.read_coordinates()}\n"
         memory_str += f"Valid Moves: {valid_moves_str}\n"
-        memory_str += f"Badges: {', '.join(reader.read_badges())}\n"
+        # memory_str += f"Badges: {', '.join(reader.read_badges())}\n"
 
         # Inventory
-        memory_str += "Inventory:\n"
-        for item, qty in reader.read_items():
-            memory_str += f"  {item} x{qty}\n"
+        # memory_str += "Inventory:\n"
+        # for item, qty in reader.read_items():
+        #     memory_str += f"  {item} x{qty}\n"
 
         # Dialog
         dialog = reader.read_dialog()
@@ -528,15 +582,15 @@ class Emulator:
             memory_str += "Dialog: None\n"
 
         # Party Pokemon
-        memory_str += "\nPokemon Party:\n"
-        for pokemon in reader.read_party_pokemon():
-            memory_str += f"\n{pokemon.nickname} ({pokemon.species_name}):\n"
-            memory_str += f"Level {pokemon.level} - HP: {pokemon.current_hp}/{pokemon.max_hp}\n"
-            memory_str += f"Types: {pokemon.type1.name}{', ' + pokemon.type2.name if pokemon.type2 else ''}\n"
-            for move, pp in zip(pokemon.moves, pokemon.move_pp, strict=True):
-                memory_str += f"- {move} (PP: {pp})\n"
-            if pokemon.status != StatusCondition.NONE:
-                memory_str += f"Status: {pokemon.status.get_status_name()}\n"
+        # memory_str += "\nPokemon Party:\n"
+        # for pokemon in reader.read_party_pokemon():
+        #     memory_str += f"\n{pokemon.nickname} ({pokemon.species_name}):\n"
+        #     memory_str += f"Level {pokemon.level} - HP: {pokemon.current_hp}/{pokemon.max_hp}\n"
+        #     memory_str += f"Types: {pokemon.type1.name}{', ' + pokemon.type2.name if pokemon.type2 else ''}\n"
+        #     for move, pp in zip(pokemon.moves, pokemon.move_pp, strict=True):
+        #         memory_str += f"- {move} (PP: {pp})\n"
+        #     if pokemon.status != StatusCondition.NONE:
+        #         memory_str += f"Status: {pokemon.status.get_status_name()}\n"
 
         return memory_str
 
